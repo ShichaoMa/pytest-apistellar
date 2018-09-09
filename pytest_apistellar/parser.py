@@ -30,8 +30,7 @@ class Prop(object):
 
     def __call__(self, *args, **kwargs):
         if self.ret_factory:
-            factory = self.ret_factory(*args, **kwargs)
-            ret_val = factory.product()
+            ret_val = self.ret_factory(*args, **kwargs)
         else:
             ret_val = self.ret_val
 
