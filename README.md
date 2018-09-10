@@ -37,7 +37,7 @@ mock =
     paas_star.Mongo.database_names
 ```
 `mock_config_file`指定了一个mock配置文件，里面定义了要mock的对象及其属性的mock方式，如：
-```json
+```js
 {
  "mocks": [
    {"obj": "paas_star.Routing", // 要mock的对象
