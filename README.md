@@ -32,9 +32,7 @@ from uploader.uploader.mimetype import MimetypeController
 [pytest]
 mock_config_file =
     mock_test.json
-usefixtures =
-    session_mock
-session_mock =
+mock =
     paas_star.Routing.from_etcd
     paas_star.Mongo.database_names
 ```
@@ -65,22 +63,22 @@ session_mock =
  ]
 }
 ```
-`session_mock`和`usefixtures`定义了在pytest启动时，要全局加载的mock，这些mock只会运行一次。
+`mock`定义了session mock marker， 在pytest启动时，只会运行一次。
 
 
 除了上面讲的session作用域下的mock以外，pytest-apistellar还支持module、class、function作用域下的mock，用法如下：
-#### module作用域，以module作为namespace，在当前module定义全局变量MOCKS
+#### module作用域，以module作为namespace，在当前module定义全局变量pytestmark
 ```python
-MOCKS = ["paas_star.Routing.from_etcd"]
+pytestmark = [pytest.mark.mock("paas_star.Routing.from_etcd", db="emp")]
 ```
-#### class作用域，以class作为namespace，定义类变量MOCKS
+#### class作用域，以class作为namespace，定义类变量pytestmark
 ```
 class TestMimetype:
-    MOCKS = ["paas_star.Routing.from_etcd"]
+    pytestmark = [pytest.mark.mock("paas_star.Routing.from_etcd")]
 ```
 #### function作用域，每个单元测试都会加载一次，使用mark来标注
 ```
-@pytest.mark.mock("paas_star.Routing.from_etcd")
+@pytest.mark.mock("paas_star.Routing.from_etcd", db="emp")
 @pytest.mark.mock("uploader.uploader.mimetype.repository.MimetypeRepository.get_mimetypes")
 @pytest.mark.usefixtures("mock")
 @pytest.mark.asyncio
@@ -91,7 +89,7 @@ async def test_mimetype(server_port):
         data = await resp.json()
         assert isinstance(data, list)
 ```
-注：mark支持多个参数同时传入
-
+pytest.mark.mock可以指定关键字参数如`db="emp"`，当该mock返回值配置为一个工厂时，
+该工厂会接收到`db=emp`字样的关键字参数，一般用来个性化不同场景下同一个mock的行为。
 
 最后，定义了作用域不代表mock会生效，要mock生效还需要指定`@pytest.mark.usefixtures("mock")`才可以
