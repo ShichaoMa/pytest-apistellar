@@ -29,6 +29,8 @@ class Prop(object):
         if self.callable:
             yield self
         else:
+            if self.ret_factory:
+                self.ret_val = self.ret_factory()
             yield self.ret_val
 
     def __call__(self, *args, **kwargs):
@@ -64,8 +66,8 @@ class Object(object):
 
 class Parser(object):
 
-    def __init__(self, config_path):
-        self.meta = json.load(open(config_path))
+    def __init__(self, meta):
+        self.meta = meta
         self.objects = [Object(mock) for mock in self.meta["mocks"]]
 
     def find_mock(self, *mocks, kwargs=None):
@@ -79,4 +81,3 @@ class Parser(object):
                     break
             else:
                 print(f"Mock of {mock_name} not found. ")
-

@@ -1,9 +1,13 @@
 import os
+import json
+import yaml
 import time
 import pytest
+import inspect
 import asyncio
 import threading
 
+from functools import partial
 from toolkit import free_port
 from apistellar import Application
 from _pytest.monkeypatch import MonkeyPatch
@@ -48,9 +52,24 @@ def server_port(create_server, request):
             loop.stop()
 
 
+def pytest_addoption(parser):
+    parser.addoption("--mock-config-file", action="store",  help="测试地址.")
+
+
+@pytest.fixture(scope="session")
+def join_root_dir(pytestconfig):
+    return partial(os.path.join, pytestconfig.getoption("rootdir") or ".")
+
+
 @pytest.fixture(scope="session")
 def parser(pytestconfig):
-    return Parser(pytestconfig.inicfg.get("mock_config_file") or "mock.json")
+    config_file = pytestconfig.getoption("mock_config_file") or "mock.json"
+    file = open(config_file)
+    if config_file[-4:] == "yaml":
+        meta = yaml.load(file)
+    else:
+        meta = json.load(file)
+    return Parser(meta)
 
 
 @pytest.fixture(scope="session")
@@ -116,12 +135,19 @@ def monkey_patch(markers, parser):
             for mock in parser.find_mock(*mark.args, kwargs=mark.kwargs):
                 try:
                     old = getattr(mock.obj, mock.name)
-                    if not callable(old):
-                        mock.callable = False
                     # or 后面的子句用来防止重复mock
                     if asyncio.iscoroutinefunction(old) \
                             or getattr(old, "async", False):
                         mock.async = True
+                    if not callable(old):
+                        mock.callable = False
+                    else:
+                        if getattr(old, "__annotations__", None):
+                            if old.__annotations__["return"]:
+                                mock.__signature__ = inspect.Signature(
+                                    return_annotation=old.__annotations__["return"])
+                                mock.__annotations__ = {"return": old.__annotations__["return"]}
+
                 except AttributeError:
                     raise RuntimeError(f"{mock.obj} has not attr: {mock.name}")
                 mpatch.setattr(*mock)
