@@ -40,17 +40,17 @@ mock =
 ```json
 {
  "mocks": [
-   {"obj": "paas_star.Routing", # 要mock的对象
+   {"obj": "paas_star.Routing", // 要mock的对象
     "props": [
-          {"name": "from_etcd", # 该对象属性(方法)名
-           "ret_factory": "factories.RoutingFactory" # 使用一个工厂来代替from_etcd。
+          {"name": "from_etcd", // 该对象属性(方法)名
+           "ret_factory": "factories.RoutingFactory" // 使用一个工厂来代替from_etcd。
            }
         ]
     },
    {"obj": "uploader.uploader.mimetype.repository.MimetypeRepository",
     "props": [
           {"name": "get_mimetypes",
-           "ret_val": ["zip/application"] # 不使用工厂，直接给定一个返回值
+           "ret_val": ["zip/application"] // 不使用工厂，直接给定一个返回值
            }
         ]
     },
