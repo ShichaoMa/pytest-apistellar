@@ -9,9 +9,9 @@ import threading
 
 from functools import partial
 from toolkit import free_port
+from _pytest.mark import Mark
 from apistellar import Application
 from _pytest.monkeypatch import MonkeyPatch
-from _pytest.mark import Mark
 from uvicorn.main import Server, HttpToolsProtocol
 
 from .parser import Parser
