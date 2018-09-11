@@ -3,18 +3,36 @@ import json
 import yaml
 import time
 import pytest
-import inspect
-import asyncio
 import threading
 
 from functools import partial
 from toolkit import free_port
-from _pytest.mark import Mark
 from apistellar import Application
-from _pytest.monkeypatch import MonkeyPatch
-from uvicorn.main import Server, HttpToolsProtocol
 
 from .parser import Parser
+from .utils import run_server
+
+from .patcher import PropPatcher, EnvPatcher
+
+
+def pytest_addoption(parser):
+    parser.addoption("--mock-config-file", action="store",  help="测试地址.")
+
+
+@pytest.fixture(scope="session")
+def join_root_dir(pytestconfig):
+    return partial(os.path.join, pytestconfig.getoption("rootdir") or ".")
+
+
+@pytest.fixture(scope="session")
+def mock_parser(pytestconfig):
+    config_file = pytestconfig.getoption("mock_config_file") or "mock.json"
+    file = open(config_file)
+    if config_file[-4:] == "yaml":
+        meta = yaml.load(file)
+    else:
+        meta = json.load(file)
+    return Parser(meta)
 
 
 @pytest.fixture(scope="module")
@@ -52,106 +70,51 @@ def server_port(create_server, request):
             loop.stop()
 
 
-def pytest_addoption(parser):
-    parser.addoption("--mock-config-file", action="store",  help="测试地址.")
-
-
 @pytest.fixture(scope="session")
-def join_root_dir(pytestconfig):
-    return partial(os.path.join, pytestconfig.getoption("rootdir") or ".")
-
-
-@pytest.fixture(scope="session")
-def parser(pytestconfig):
-    config_file = pytestconfig.getoption("mock_config_file") or "mock.json"
-    file = open(config_file)
-    if config_file[-4:] == "yaml":
-        meta = yaml.load(file)
-    else:
-        meta = json.load(file)
-    return Parser(meta)
-
-
-@pytest.fixture(scope="session")
-def session_mock(request, pytestconfig, parser: Parser):
-    mocks = pytestconfig.inicfg.get("mock")
-    if mocks:
-        markers = (Mark("mock", (m,), {}) for m in mocks.strip().split("\n"))
-    else:
-        markers = []
-    yield from monkey_patch(markers, parser)
+def session_env_mock(pytestconfig):
+    yield from EnvPatcher.from_config(pytestconfig).process()
 
 
 @pytest.fixture(scope="module")
-def module_mock(request, parser: Parser):
-    markers = request.node.iter_markers("mock")
-    yield from monkey_patch(markers, parser)
+def module_env_mock(request):
+    yield from EnvPatcher.from_request(request).process()
 
 
 @pytest.fixture(scope="class")
-def class_mock(request, parser: Parser):
-    markers = request.node.iter_markers("mock")
-    yield from monkey_patch(markers, parser)
+def class_env_mock(request):
+    yield from EnvPatcher.from_request(request).process()
 
 
 @pytest.fixture
-def mock(request, parser: Parser, module_mock, class_mock, session_mock):
-    """
-    mock信息配置在mock.json中，从四个维度加载mock信息
-    :param request:
-    :param parser:
-    :param monkeypatch:
-    :param module_mock: 只是为了加载module mock
-    :param class_mock: 只是为了加载cls mock
-    :param session_mock 只是为了加载session_mock
-    :return:
-    """
-    markers = request.node.iter_markers("mock")
-    yield from monkey_patch(markers, parser)
+def function_env_mock(request):
+    yield from EnvPatcher.from_request(request).process()
 
 
-def run_server(app, container, port=8080):
-    """
-    创建一个简单的server用来测试
-    :param app:
-    :param port:
-    :return:
-    """
-    loop = asyncio.new_event_loop()
-    server = Server(app, "127.0.0.1", port, loop, None, HttpToolsProtocol)
-    loop.run_until_complete(server.create_server())
-
-    if server.server is not None:
-        container.append(loop)
-        container.append(server.server)
-        loop.create_task(server.tick())
-        loop.run_forever()
+@pytest.fixture(scope="session")
+def session_prop_mock(pytestconfig, mock_parser: Parser, session_env_mock):
+    yield from PropPatcher.from_config(pytestconfig, mock_parser).process()
 
 
-def monkey_patch(markers, parser):
-    mpatch = MonkeyPatch()
-    try:
-        for mark in markers:
-            for mock in parser.find_mock(*mark.args, kwargs=mark.kwargs):
-                try:
-                    old = getattr(mock.obj, mock.name)
-                    # or 后面的子句用来防止重复mock
-                    if asyncio.iscoroutinefunction(old) \
-                            or getattr(old, "async", False):
-                        mock.async = True
-                    if not callable(old):
-                        mock.callable = False
-                    else:
-                        if getattr(old, "__annotations__", None):
-                            if old.__annotations__["return"]:
-                                mock.__signature__ = inspect.Signature(
-                                    return_annotation=old.__annotations__["return"])
-                                mock.__annotations__ = {"return": old.__annotations__["return"]}
+@pytest.fixture(scope="module")
+def module_prop_mock(request, mock_parser: Parser, module_env_mock):
+    yield from PropPatcher.from_request(request, mock_parser).process()
 
-                except AttributeError:
-                    raise RuntimeError(f"{mock.obj} has not attr: {mock.name}")
-                mpatch.setattr(*mock)
 
-        yield mpatch
-    finally:
-        mpatch.undo()
+@pytest.fixture(scope="class")
+def class_prop_mock(request, mock_parser: Parser, class_env_mock):
+    yield from PropPatcher.from_request(request, mock_parser).process()
+
+
+@pytest.fixture
+def function_prop_mock(request,
+                       mock_parser,
+                       session_prop_mock,
+                       module_prop_mock,
+                       class_prop_mock,
+                       function_env_mock):
+    yield from PropPatcher.from_request(request, mock_parser).process()
+
+
+@pytest.fixture
+def mock(function_prop_mock):
+    """封装monkey patch实现mock env和prop"""

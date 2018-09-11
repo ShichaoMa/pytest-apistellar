@@ -1,4 +1,3 @@
-import json
 import asyncio
 
 from functools import partial
@@ -8,14 +7,14 @@ from toolkit import load_class as _load
 class Prop(object):
 
     def __init__(self,
-                 obj,
+                 obj_name,
                  name,
                  ret_val=None,
                  ret_factory=None,
                  async=False,
                  callable=True,
                  kwargs=None):
-        self.obj = obj
+        self.obj = _load(obj_name)
         self.name = name
         self.ret_val = ret_val
         self.ret_factory = ret_factory and _load(ret_factory)
@@ -52,10 +51,9 @@ class Object(object):
 
     def __init__(self, mock):
         self.obj_name = mock["obj"]
-        self.obj = _load(self.obj_name)
         self.elements = set()
         for prop in mock.get("props", []):
-            self.elements.add(partial(Prop, self.obj, **prop))
+            self.elements.add(partial(Prop, self.obj_name, **prop))
 
     def find(self, obj_name, name):
         if self.obj_name == obj_name:
