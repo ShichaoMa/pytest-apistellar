@@ -62,7 +62,7 @@ from uploader.uploader.mimetype import MimetypeController
 
 #### 全局的mock
 我们新建一个pytest.ini配置文件，输入：
-```
+```ini
 [pytest]
 mock =
     paas_star.Routing.from_etcd
@@ -79,13 +79,13 @@ pytestmark = [pytest.mark.mock("paas_star.Routing.from_etcd", db="emp")]
 ```
 ##### class作用域
 以class作为namespace，定义类变量pytestmark
-```
+```python
 class TestMimetype:
     pytestmark = [pytest.mark.mock("paas_star.Routing.from_etcd")]
 ```
 ##### function作用域
 每个单元测试都会加载一次，使用mark来标注
-```
+```python
 @pytest.mark.mock("paas_star.Routing.from_etcd", db="emp")
 @pytest.mark.mock("uploader.uploader.mimetype.repository.MimetypeRepository.get_mimetypes")
 @pytest.mark.usefixtures("mock")
