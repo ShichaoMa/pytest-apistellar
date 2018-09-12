@@ -98,7 +98,7 @@ async def test_mimetype(self, server_port):
         data = await resp.json()
         assert isinstance(data, list)
 ```
-pytest.mark.mock可以指定关键字参数如`db="emp"`，当该mock返回值配置为一个工厂时，
+pytest.mark.prop可以指定关键字参数如`db="emp"`，当该mock返回值配置为一个工厂时，
 该工厂会接收到`db=emp`字样的关键字参数，一般用来个性化不同场景下同一个mock的行为。
 ### mock环境变量
 mock 环境变量和mock属性类似，不过不需要使用mock配置文件
