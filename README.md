@@ -91,7 +91,7 @@ class TestMimetype:
 @pytest.mark.prop("uploader.uploader.mimetype.repository.MimetypeRepository.get_mimetypes")
 @pytest.mark.usefixtures("mock")
 @pytest.mark.asyncio
-async def test_mimetype(server_port):
+async def test_mimetype(self, server_port):
     url = f"http://localhost:{server_port}/mimetype/"
     async with ClientSession(conn_timeout=10, read_timeout=10) as session:
         resp = await session.get(url)
@@ -127,7 +127,7 @@ class TestMimetype:
 ```python
 @pytest.mark.env(APP_NAME="TEST")
 @pytest.mark.usefixtures("mock")
-def test_appname():
+def test_appname(self):
     import os
     assert os.getenv("APP_NAME") == "TEST"
 ```

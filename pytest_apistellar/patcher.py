@@ -21,13 +21,16 @@ class Patcher(ABC):
         self.markers = markers
 
     def process(self):
-        try:
-            for mark in self.markers:
-                self.process_mark(mark)
+        from toolkit.managers import Timer
+        with Timer() as timer:
+            try:
+                for mark in self.markers:
+                    self.process_mark(mark)
 
-            yield self
-        finally:
-            self.mokey_patch.undo()
+                yield self
+            finally:
+                self.mokey_patch.undo()
+        print(111111111, timer.cost)
 
     @abstractmethod
     def process_mark(self, mark):
