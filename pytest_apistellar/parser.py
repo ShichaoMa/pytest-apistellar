@@ -14,6 +14,16 @@ class Prop(object):
                  async=False,
                  callable=True,
                  kwargs=None):
+        """
+
+        :param obj_name: 被mock的属性拥有者
+        :param name: 被mock的属性名称
+        :param ret_val: mock的返回值
+        :param ret_factory: mock的返回值生产工厂
+        :param async: 被mock的是属性是否是异步的
+        :param callable: 被mock的属性是否是可调用的
+        :param kwargs: mark传入的kwargs参数
+        """
         self.obj = _load(obj_name)
         self.name = name
         self.ret_val = ret_val
@@ -75,7 +85,11 @@ class Parser(object):
             for obj in self.objects:
                 mock_cls = obj.find(obj_name, prop)
                 if mock_cls:
-                    yield mock_cls(kwargs=kwargs)
+                    instance = mock_cls(kwargs=kwargs)
+                    # 有一些同步的方式会返回future来冒充异步，需要手动在kwargs中指明
+                    if kwargs.get("async"):
+                        instance.async = True
+                    yield instance
                     break
             else:
                 print(f"Mock of {mock_name} not found. ")

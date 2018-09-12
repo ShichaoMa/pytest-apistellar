@@ -48,10 +48,12 @@ from uploader.uploader.mimetype import MimetypeController
            }
         ]
     },
-   {"obj": "paas_star.Mongo",
+   {"obj": "motor.motor_asyncio.AsyncIOMotorCollection",
     "props": [
-          {"name": "database_names",
-           "ret_val": ["emperor"]}
+          {"name": "find_one",
+           "ret_factory": "factories.collection_factory",
+           "async": true // find_one本身是一个同步函数，但是返回future来实现异步，无法通过asyncio.iscoroutinefunction来判断是否为异步函数，所以需要明确指定
+           }
         ]
     }
  ]

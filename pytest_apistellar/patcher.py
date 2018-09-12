@@ -5,7 +5,7 @@ from _pytest.mark import Mark
 from abc import ABC, abstractmethod
 from _pytest.monkeypatch import MonkeyPatch
 
-count = 0
+
 class Patcher(ABC):
 
     @property
@@ -59,6 +59,9 @@ class Patcher(ABC):
 
 
 class PropPatcher(Patcher):
+    """
+    用来monkey patch 属性
+    """
     name = "prop"
 
     def __init__(self, markers, parser):
@@ -71,7 +74,7 @@ class PropPatcher(Patcher):
                 old = getattr(mock.obj, mock.name)
                 # or 后面的子句用来防止重复mock
                 if asyncio.iscoroutinefunction(old) \
-                        or getattr(old, "async", False):
+                        or getattr(old, "async", False) or mock.async:
                     mock.async = True
                 if not callable(old):
                     mock.callable = False
@@ -96,6 +99,9 @@ class PropPatcher(Patcher):
 
 
 class EnvPatcher(Patcher):
+    """
+    用来monkey patch 环境变量
+    """
     name = "env"
 
     def process_mark(self, mark):
