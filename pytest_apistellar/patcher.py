@@ -5,7 +5,7 @@ from _pytest.mark import Mark
 from abc import ABC, abstractmethod
 from _pytest.monkeypatch import MonkeyPatch
 
-
+count = 0
 class Patcher(ABC):
 
     @property
@@ -21,16 +21,12 @@ class Patcher(ABC):
         self.markers = markers
 
     def process(self):
-        from toolkit.managers import Timer
-        with Timer() as timer:
-            try:
-                for mark in self.markers:
-                    self.process_mark(mark)
-
-                yield self
-            finally:
-                self.mokey_patch.undo()
-        print(111111111, timer.cost)
+        try:
+            for mark in self.markers:
+                self.process_mark(mark)
+            yield self
+        finally:
+            self.mokey_patch.undo()
 
     @abstractmethod
     def process_mark(self, mark):
