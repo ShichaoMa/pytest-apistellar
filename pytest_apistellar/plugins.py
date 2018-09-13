@@ -54,72 +54,37 @@ def server_port(create_server, request):
 
 @pytest.fixture(scope="session")
 def session_env_mock(pytestconfig):
-    gen = EnvPatcher.from_config(pytestconfig).process()
-    try:
-        yield from gen
-    except SyntaxError:
-        while True:
-            yield next(gen)
+    yield from EnvPatcher.from_config(pytestconfig).process()
 
 
 @pytest.fixture(scope="module")
 def module_env_mock(request):
-    gen = EnvPatcher.from_request(request).process()
-    try:
-        yield from gen
-    except SyntaxError:
-        while True:
-            yield next(gen)
+    yield from EnvPatcher.from_request(request).process()
 
 
 @pytest.fixture(scope="class")
 def class_env_mock(request):
-    gen = EnvPatcher.from_request(request).process()
-    try:
-        yield from gen
-    except SyntaxError:
-        while True:
-            yield next(gen)
+    yield from EnvPatcher.from_request(request).process()
 
 
 @pytest.fixture
 def function_env_mock(request):
-    gen = EnvPatcher.from_request(request).process()
-    try:
-        yield from gen
-    except SyntaxError:
-        while True:
-            yield next(gen)
+    yield from EnvPatcher.from_request(request).process()
 
 
 @pytest.fixture(scope="session")
 def session_prop_mock(pytestconfig, session_env_mock):
-    gen = PropPatcher.from_config(pytestconfig).process()
-    try:
-        yield from gen
-    except SyntaxError:
-        while True:
-            yield next(gen)
+    yield from PropPatcher.from_config(pytestconfig).process()
 
 
 @pytest.fixture(scope="module")
 def module_prop_mock(request, module_env_mock):
-    gen = PropPatcher.from_request(request).process()
-    try:
-        yield from gen
-    except SyntaxError:
-        while True:
-            yield next(gen)
+    yield from PropPatcher.from_request(request).process()
 
 
 @pytest.fixture(scope="class")
 def class_prop_mock(request, class_env_mock):
-    gen = PropPatcher.from_request(request).process()
-    try:
-        yield from gen
-    except SyntaxError:
-        while True:
-            yield next(gen)
+    yield from PropPatcher.from_request(request).process()
 
 
 @pytest.fixture
@@ -128,12 +93,8 @@ def function_prop_mock(request,
                        module_prop_mock,
                        class_prop_mock,
                        function_env_mock):
-    gen = PropPatcher.from_request(request).process()
-    try:
-        yield from gen
-    except SyntaxError:
-        while True:
-            yield next(gen)
+    yield from PropPatcher.from_request(request).process()
+
 
 @pytest.fixture
 def mock(function_prop_mock):
