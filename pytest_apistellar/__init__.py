@@ -1,3 +1,4 @@
+# -*- coding:utf-8 -*-
 from _pytest.mark import MarkDecorator, Mark
 
 from .plugins import run_server
@@ -15,14 +16,15 @@ class DecoratorProxy(object):
         self.mock_obj_prefix = mock_obj_prefix
         self.mock_factory_prefix = mock_factory_prefix
 
-    def __call__(self, prop_name, *args, ret_factory=None, **kwargs):
+    def __call__(self, prop_name, *args, **kwargs):
+        ret_factory = kwargs.pop("ret_factory", None)
         if self.mock_obj_prefix:
-            pn = f"{self.mock_obj_prefix}.{prop_name}"
+            pn = "{}.{}".format(self.mock_obj_prefix, prop_name)
         else:
             pn = prop_name
 
         if ret_factory and self.mock_factory_prefix:
-            fn = f"{self.mock_factory_prefix}.{ret_factory}"
+            fn = "{}.{}".format(self.mock_factory_prefix, ret_factory)
         else:
             fn = ret_factory
         return self.decorator(pn, *args, ret_factory=fn, **kwargs)

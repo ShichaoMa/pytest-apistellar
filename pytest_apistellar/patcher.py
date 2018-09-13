@@ -1,9 +1,8 @@
+# -*- coding:utf-8 -*-
 import inspect
-import asyncio
 
 from _pytest.mark import Mark
 from abc import ABC, abstractmethod
-from toolkit import load_function as _load
 from _pytest.monkeypatch import MonkeyPatch
 
 from .parser import parse
@@ -96,11 +95,15 @@ class PropPatcher(Patcher):
         mock = parse(mark.args[0], mark.args[1:], kwargs=mark.kwargs)
         try:
             old = getattr(mock.obj, mock.name)
-            # 如果是异步函数或者之前mock过有为true的async属性或者在配置中指定了async=true
-            if asyncio.iscoroutinefunction(old) \
-                    or getattr(old, "async", False) or\
-                    mock.async:
-                mock.async = True
+            try:
+                import asyncio
+                # 如果是异步函数或者之前mock过有为true的async属性或者在配置中指定了async=true
+                if asyncio.iscoroutinefunction(old) \
+                        or getattr(old, "async", False) or \
+                        mock.async:
+                    mock.async = True
+            except ImportError:
+                pass
             # 证明old是prop
             if hasattr(old, "callable"):
                 mock.callable = old.callable
@@ -112,14 +115,11 @@ class PropPatcher(Patcher):
                 if getattr(old, "__annotations__", None):
                     if old.__annotations__["return"]:
                         mock.__signature__ = inspect.Signature(
-                            return_annotation=old.__annotations__[
-                                "return"])
+                            return_annotation=old.__annotations__["return"])
                         mock.__annotations__ = {
-                            "return": old.__annotations__[
-                                "return"]}
+                            "return": old.__annotations__["return"]}
         except AttributeError:
-            raise RuntimeError(
-                f"{mock.obj} has not attr: {mock.name}")
+            raise RuntimeError("{} has not attr: {}".format(mock.obj, mock.name))
         self.mokey_patch.setattr(*mock)
 
     @classmethod
