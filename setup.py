@@ -51,11 +51,6 @@ setup(
     author_email="cnaafhvk@foxmail.com",
     url="https://www.github.com/ShichaoMa/apistellar",
     entry_points={
-        "console_scripts": [
-            "apistar-create = apistellar:main",
-            "apistar-console = apistellar:console",
-            "apistar-routes = apistellar:show_routes"
-        ],
         "pytest11": ["apistellar = pytest_apistellar.plugins"]
 
     },
