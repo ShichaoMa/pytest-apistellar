@@ -28,69 +28,57 @@ from uploader.uploader.mimetype import MimetypeController
 一个api单元测试就写好了，可以直接使用pytest命令启动
 ## 如何mock属性和环境变量
 ### mock属性
-#### mock配置
-我们在启动pytest时指定参数： --mock-config-file=mock.json,
-`mock.json`指向mock的配置文件，里面定义了要mock的对象及其属性的mock方式，如：
-```js
-{
- "mocks": [
-   {"obj": "paas_star.Routing", // 要mock的对象
-    "props": [
-          {"name": "from_etcd", // 该对象属性(方法)名
-           "ret_factory": "factories.RoutingFactory" // 使用一个工厂来代替from_etcd。
-           }
-        ]
-    },
-   {"obj": "uploader.uploader.mimetype.repository.MimetypeRepository",
-    "props": [
-          {"name": "get_mimetypes",
-           "ret_val": ["zip/application"] // 不使用工厂，直接给定一个返回值
-           }
-        ]
-    },
-   {"obj": "motor.motor_asyncio.AsyncIOMotorCollection",
-    "props": [
-          {"name": "find_one",
-           "ret_factory": "factories.collection_factory",
-           "async": true // find_one本身是一个同步函数，但是返回future来实现异步，无法通过asyncio.iscoroutinefunction来判断是否为异步函数，所以需要明确指定
-           }
-        ]
-    }
- ]
-}
-```
-同时mock配置文件还支持yaml格式，以便使配置更加简洁。
+除了全局的mock以外，mock使用pytest.mark.prop来实现。
+pytest.mark.prop可以被传递入位置参数和关键字参数，具体用法如下：
+- args[0]: 第一个位置参数，指定被mock的对象或方法，使用`model.class.method`样式的字符串指定。
+- ret_val: 关键字参数，指定被mock的方法的返回值或者被mock的属性的值。
+- ret_factory: 关键字参数，指定一个工厂(可调用对象)，其返回值将作为被mock的方法的返回值或者被mock的属性的值，与ret_val二者指定其一。
+- async: 关键字参数，被mock的方法或函数是否是异步的，通常可以忽略这个参数，因为插件会自动猜测其性质，但是有些同步的函数会返回future来伪装成异步函数，这时需要指定。
+- callable: 关键字参数，这个不需要指定，但是也不要使用它作为关键字参数传递给ret_factory。
+- args[1:]: 其它位置参数会被作为ret_factory的参数传入。
+- kwargs: 其它关键字参数会被作为ret_factory的参数传入。
 
-#### 使用配置好的mock
+pytest-apistellar支持session, module、class、function作用域下的mock。
 
-##### 全局的mock
+#### session作用域
+session作用域下的mock全局有效。
+
 我们新建一个pytest.ini配置文件，输入：
 ```ini
 [pytest]
 prop =
-    paas_star.Routing.from_etcd
-    paas_star.Mongo.database_names
+    paas_star.Routing.from_etcd->factories.RoutingFactory
+    uploader.uploader.s3.file.File.TABLE=test_file
 ```
-使用pytest.ini配置的mock默认是全局的(session)，只会在测试启动时执行一次。
+每行为一个mock
 
-##### 其它作用域的mock
-除了上面讲的session作用域下的mock以外，pytest-apistellar还支持module、class、function作用域下的mock，用法如下：
-##### module作用域
-以module作为namespace，在当前module定义全局变量pytestmark
+- 第一个mock
+
+args[0] = paas_star.Routing.from_etcd
+
+ret_factory = factories.RoutingFactory
+
+- 第二个mock
+
+args[0] = uploader.uploader.s3.file.File.TABLE
+
+ret_val = test_file
+
+#### module作用域
+module作用域的mock仅在当前模块有效，在当前模块定义全局变量pytestmark
 ```python
-pytestmark = [pytest.mark.prop("paas_star.Routing.from_etcd", db="emp")]
+pytestmark = [pytest.mark.prop("uploader.uploader.s3.repository.S3Repository.mongodb", ret_factory="factories.mongo_factory")]
 ```
 ###### class作用域
 以class作为namespace，定义类变量pytestmark
 ```python
 class TestMimetype:
-    pytestmark = [pytest.mark.prop("paas_star.Routing.from_etcd")]
+    pytestmark = [pytest.mark.prop("uploader.uploader.s3.repository.S3Repository.mongodb", ret_factory="factories.mongo_factory")]
 ```
 ###### function作用域
 每个单元测试都会加载一次，使用mark来标注
 ```python
-@pytest.mark.prop("paas_star.Routing.from_etcd", db="emp")
-@pytest.mark.prop("uploader.uploader.mimetype.repository.MimetypeRepository.get_mimetypes")
+@pytest.mark.prop("uploader.uploader.s3.repository.S3Repository.mongodb", ret_factory="factories.mongo_factory")
 @pytest.mark.usefixtures("mock")
 @pytest.mark.asyncio
 async def test_mimetype(self, server_port):
@@ -100,8 +88,32 @@ async def test_mimetype(self, server_port):
         data = await resp.json()
         assert isinstance(data, list)
 ```
-pytest.mark.prop可以指定关键字参数如`db="emp"`，当该mock返回值配置为一个工厂时，
-该工厂会接收到`db=emp`字样的关键字参数，一般用来个性化不同场景下同一个mock的行为。
+我们可能对过长的装饰器感到困惑，pytest-apistellar提供了别名支持
+```python
+s3_repo = prop_alias("uploader.uploader.s3.repository.S3Repository")
+s3_file = prop_alias("uploader.uploader.s3.file.File")
+bkd_s3 = prop_alias("paas_star.backend.s3.dummy_s3", mock_factory_prefix="fac")
+fairyland = prop_alias("uploader.uploader.s3.fairyland.Fairyland")
+
+```
+指定mock_obj_prefix和mock_factory_prefix，就不必写过长的模块名了。在定义好别名后，直接使用别名装饰器，和pytest.mark.prop没有任何区别
+```python
+pytestmark = [
+        s3_repo("mongodb", ret_factory="mongo_factory"),
+        s3_repo("s3", ret_factory="s3_factory"),
+        s3_repo("settings", ret_factory="settings_factory"),
+        s3_repo("session", ret_factory="session_factory"),
+        s3_file("save", ret_val={"ok": 1}),
+        s3_file("mongo", ret_factory="mongo_factory"),
+        bkd_s3("Bucket.delete_key"),
+        bkd_s3("Key.set_contents_from_file",
+                   ret_factory="set_contents_from_file_factory"),
+        bkd_s3("Key.set_canned_acl"),
+        bkd_s3("Key.get_contents_as_string",
+                   ret_factory="download_from_s3",
+                   fn="download_data")
+    ]
+```
 ### mock环境变量
 mock 环境变量和mock属性类似，不过不需要使用mock配置文件
 #### session作用域

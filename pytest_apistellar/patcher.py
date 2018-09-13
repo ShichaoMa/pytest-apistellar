@@ -3,7 +3,22 @@ import asyncio
 
 from _pytest.mark import Mark
 from abc import ABC, abstractmethod
+from toolkit import load_function as _load
 from _pytest.monkeypatch import MonkeyPatch
+
+from .parser import parse
+
+
+class MarkerWrapper(object):
+    """
+    Mark类__eq__使用(name, args, kwargs)是否相同来判断，
+    无法满足去重的要求，所以使用这个类来包装一下使用id来去重。
+    """
+    def __init__(self, marker):
+        self.marker = marker
+
+    def __eq__(self, other):
+        return id(self.marker) == id(other)
 
 
 class Patcher(ABC):
@@ -16,6 +31,16 @@ class Patcher(ABC):
         :return:
         """
 
+    @property
+    @abstractmethod
+    def total_markers(self):
+        """
+        由于iter_markers会返回所有scope下的mark，
+        所以使用这个属性来保证每个markers只处理一次，
+        type: list
+        :return:
+        """
+
     def __init__(self, markers):
         self.mokey_patch = MonkeyPatch()
         self.markers = markers
@@ -23,7 +48,9 @@ class Patcher(ABC):
     def process(self):
         try:
             for mark in self.markers:
-                self.process_mark(mark)
+                if MarkerWrapper(mark) not in self.total_markers:
+                    self.process_mark(mark)
+                    self.total_markers.append(mark)
             yield self
         finally:
             self.mokey_patch.undo()
@@ -37,10 +64,10 @@ class Patcher(ABC):
 
     @classmethod
     @abstractmethod
-    def config_parse(cls, m):
+    def config_parse(cls, mark):
         """
         config解析方式
-        :param m:
+        :param mark:
         :return: Mark
         """
 
@@ -63,39 +90,48 @@ class PropPatcher(Patcher):
     用来monkey patch 属性
     """
     name = "prop"
-
-    def __init__(self, markers, parser):
-        super(PropPatcher, self).__init__(markers)
-        self.parser = parser
+    total_markers = list()
 
     def process_mark(self, mark):
-        for mock in self.parser.find_mock(*mark.args, kwargs=mark.kwargs):
-            try:
-                old = getattr(mock.obj, mock.name)
-                # or 后面的子句用来防止重复mock
-                if asyncio.iscoroutinefunction(old) \
-                        or getattr(old, "async", False) or mock.async:
-                    mock.async = True
-                if not callable(old):
-                    mock.callable = False
-                else:
-                    if getattr(old, "__annotations__", None):
-                        if old.__annotations__["return"]:
-                            mock.__signature__ = inspect.Signature(
-                                return_annotation=old.__annotations__[
-                                    "return"])
-                            mock.__annotations__ = {
-                                "return": old.__annotations__[
-                                    "return"]}
-
-            except AttributeError:
-                raise RuntimeError(
-                    f"{mock.obj} has not attr: {mock.name}")
-            self.mokey_patch.setattr(*mock)
+        mock = parse(mark.args[0], mark.args[1:], kwargs=mark.kwargs)
+        try:
+            old = getattr(mock.obj, mock.name)
+            # 如果是异步函数或者之前mock过有为true的async属性或者在配置中指定了async=true
+            if asyncio.iscoroutinefunction(old) \
+                    or getattr(old, "async", False) or\
+                    mock.async:
+                mock.async = True
+            # 证明old是prop
+            if hasattr(old, "callable"):
+                mock.callable = old.callable
+            # 当old不是prop同时也不是可调用对象时
+            elif not callable(old):
+                mock.callable = False
+            # apistellar的依赖注入需要return 的signature
+            if mock.callable:
+                if getattr(old, "__annotations__", None):
+                    if old.__annotations__["return"]:
+                        mock.__signature__ = inspect.Signature(
+                            return_annotation=old.__annotations__[
+                                "return"])
+                        mock.__annotations__ = {
+                            "return": old.__annotations__[
+                                "return"]}
+        except AttributeError:
+            raise RuntimeError(
+                f"{mock.obj} has not attr: {mock.name}")
+        self.mokey_patch.setattr(*mock)
 
     @classmethod
-    def config_parse(cls, m):
-        return Mark(cls.name, (m,), {})
+    def config_parse(cls, mark):
+        if "->" in mark:
+            mark, ret_factory = mark.split("->", 1)
+            kwargs = {"ret_factory": ret_factory}
+        else:
+            mark, ret_val = mark.split("=", 1)
+            kwargs = {"ret_val": mark}
+
+        return Mark(cls.name, tuple([mark]), kwargs)
 
 
 class EnvPatcher(Patcher):
@@ -103,6 +139,7 @@ class EnvPatcher(Patcher):
     用来monkey patch 环境变量
     """
     name = "env"
+    total_markers = list()
 
     def process_mark(self, mark):
         prepend = mark.kwargs.pop("prepend", None)
@@ -110,6 +147,6 @@ class EnvPatcher(Patcher):
             self.mokey_patch.setenv(key, val, prepend)
 
     @classmethod
-    def config_parse(cls, m):
-        key, val = m.split("=", 1)
+    def config_parse(cls, mark):
+        key, val = mark.split("=", 1)
         return Mark(cls.name, tuple(), {key: val})

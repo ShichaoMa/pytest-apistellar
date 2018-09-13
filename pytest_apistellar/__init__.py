@@ -1,4 +1,43 @@
+from _pytest.mark import MarkDecorator, Mark
+
 from .plugins import run_server
 
 
-__version__ = "0.0.6"
+__version__ = "0.0.7"
+
+
+class DecoratorProxy(object):
+    """
+    代理MarkDecorator，重载了其__call__方法，对prop_name和ret_factory进行丰富操作。
+    """
+    def __init__(self, mock_obj_prefix, mock_factory_prefix, decorator):
+        self.decorator = decorator
+        self.mock_obj_prefix = mock_obj_prefix
+        self.mock_factory_prefix = mock_factory_prefix
+
+    def __call__(self, prop_name, *args, ret_factory=None, **kwargs):
+        if self.mock_obj_prefix:
+            pn = f"{self.mock_obj_prefix}.{prop_name}"
+        else:
+            pn = prop_name
+
+        if ret_factory and self.mock_factory_prefix:
+            fn = f"{self.mock_factory_prefix}.{ret_factory}"
+        else:
+            fn = ret_factory
+        return self.decorator(pn, *args, ret_factory=fn, **kwargs)
+
+    def __getattr__(self, item):
+        return getattr(self.decorator, item)
+
+
+def prop_alias(mock_obj_prefix=None, mock_factory_prefix="factories"):
+    """
+    prop mark装饰器别名，指定要mock对象及工厂对象名字的前缀，减少装饰器长度。
+    :param mock_obj_prefix:
+    :param mock_factory_prefix:
+    :return:
+    """
+    return DecoratorProxy(mock_obj_prefix,
+                          mock_factory_prefix,
+                          MarkDecorator(Mark("prop", (), {})))
