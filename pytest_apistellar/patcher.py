@@ -76,7 +76,7 @@ class Patcher(object):
         """
 
     @classmethod
-    def from_config(cls, pytestconfig, *args, **kwargs):
+    def from_pytestconfig(cls, pytestconfig, *args, **kwargs):
         mocks = pytestconfig.inicfg.get(cls.name)
         if mocks:
             ms = (cls.config_parse(m) for m in mocks.strip().split("\n"))
