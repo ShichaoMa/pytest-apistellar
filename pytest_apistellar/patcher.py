@@ -1,9 +1,10 @@
 # -*- coding:utf-8 -*-
+import six
 import inspect
-import asyncio
+
+from abc import ABCMeta, abstractmethod
 
 from _pytest.mark import Mark
-from abc import ABC, abstractmethod
 from _pytest.monkeypatch import MonkeyPatch
 
 from .parser import parse
@@ -21,7 +22,8 @@ class MarkerWrapper(object):
         return id(self.marker) == id(other)
 
 
-class Patcher(ABC):
+@six.add_metaclass(ABCMeta)
+class Patcher(object):
 
     @property
     @abstractmethod
@@ -45,15 +47,17 @@ class Patcher(ABC):
         self.mokey_patch = MonkeyPatch()
         self.markers = markers
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.mokey_patch.undo()
+
     def process(self):
-        try:
-            for mark in self.markers:
-                if MarkerWrapper(mark) not in self.total_markers:
-                    self.process_mark(mark)
-                    self.total_markers.append(mark)
-            yield self
-        finally:
-            self.mokey_patch.undo()
+        for mark in self.markers:
+            if MarkerWrapper(mark) not in self.total_markers:
+                self.process_mark(mark)
+                self.total_markers.append(mark)
 
     @abstractmethod
     def process_mark(self, mark):
@@ -97,6 +101,7 @@ class PropPatcher(Patcher):
         try:
             old = getattr(mock.obj, mock.name)
             try:
+                import asyncio
                 # 如果是异步函数或者之前mock过有为true的async属性或者在配置中指定了async=true
                 if asyncio.iscoroutinefunction(old) \
                         or getattr(old, "async", False) or \

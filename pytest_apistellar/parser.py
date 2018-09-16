@@ -1,7 +1,5 @@
 # -*- coding:utf-8 -*-
-import asyncio
-
-from toolkit import load_function as _load
+from .utils import load
 
 
 class Prop(object):
@@ -25,10 +23,10 @@ class Prop(object):
         :param callable: 被mock的属性是否是可调用的
         :param kwargs: mark传入的kwargs参数
         """
-        self.obj = _load(_obj_name)
+        self.obj = load(_obj_name)
         self.name = _name
         self.ret_val = ret_val
-        self.ret_factory = ret_factory and _load(ret_factory)
+        self.ret_factory = ret_factory and load(ret_factory)
         self.async = async
         self.callable = callable
         self.args = args or tuple()
@@ -45,17 +43,15 @@ class Prop(object):
             yield self.ret_val
 
     def __call__(self, *args, **kwargs):
+        kwargs.update(self.kwargs)
         if self.ret_factory:
-            ret_val = self.ret_factory(*args, *self.args, **self.kwargs, **kwargs)
+            ret_val = self.ret_factory(*(args + self.args), **kwargs)
         else:
             ret_val = self.ret_val
 
         if self.async:
-            async def inner():
-                if asyncio.iscoroutine(ret_val):
-                    await ret_val
-                return ret_val
-            return inner()
+            from .compact import get_coroutine
+            return get_coroutine(ret_val)
         else:
             return ret_val
 

@@ -1,15 +1,13 @@
 # -*- coding:utf-8 -*-
 from _pytest.mark import MarkDecorator, Mark
 
-from .plugins import run_server
-
 
 __version__ = "0.0.7"
 
 
 class DecoratorProxy(object):
     """
-    代理MarkDecorator，重载了其__call__方法，对prop_name和ret_factory进行丰富操作。
+    代理MarkDecorator，重载了其__call__方法，对prop_name和ret_factory进行前缀拼接操作。
     """
     def __init__(self, mock_obj_prefix, mock_factory_prefix, decorator):
         self.decorator = decorator

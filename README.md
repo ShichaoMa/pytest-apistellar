@@ -8,7 +8,7 @@ pip install pytest-apistellar
 # USEAGE
 pytest-apistellar主要有两个功能：
 - 后台启动一个web服务，来测试接口
-- 通过配置文件来支持更强大的mock，增强pytest mock功能的可用性，目前支持属性和环境变量的mock
+- 使用装饰器增强pytest mock功能的可用性，目前支持属性和环境变量的mock
 
 ## 如何启动一个web服务
 下面的代码在定义了server_port参数后自动使用子线程启动了一个ASGI server
@@ -115,7 +115,7 @@ pytestmark = [
     ]
 ```
 ### mock环境变量
-mock 环境变量和mock属性类似，不过不需要使用mock配置文件
+mock 环境变量和mock属性类似。
 #### session作用域
 在pytest.ini中增加
 ```ini
