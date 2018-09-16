@@ -2,7 +2,7 @@
 from _pytest.mark import MarkDecorator, Mark
 
 
-__version__ = "0.0.8"
+__version__ = "0.0.9"
 
 
 class DecoratorProxy(object):
