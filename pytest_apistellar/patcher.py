@@ -44,14 +44,14 @@ class Patcher(object):
         """
 
     def __init__(self, markers):
-        self.mokey_patch = MonkeyPatch()
+        self.monkey_patch = MonkeyPatch()
         self.markers = markers
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.mokey_patch.undo()
+        self.monkey_patch.undo()
 
     def process(self):
         for mark in self.markers:
@@ -76,17 +76,17 @@ class Patcher(object):
         """
 
     @classmethod
-    def from_pytestconfig(cls, pytestconfig, *args, **kwargs):
+    def from_pytestconfig(cls, pytestconfig):
         mocks = pytestconfig.inicfg.get(cls.name)
         if mocks:
             ms = (cls.config_parse(m) for m in mocks.strip().split("\n"))
         else:
             ms = []
-        return cls(ms, *args, **kwargs)
+        return cls(ms)
 
     @classmethod
     def from_request(cls, request, *args, **kwargs):
-        return cls(request.node.iter_markers(cls.name), *args, **kwargs)
+        return cls(request.node.iter_markers(cls.name))
 
 
 class PropPatcher(Patcher):
@@ -96,25 +96,27 @@ class PropPatcher(Patcher):
     name = "prop"
     total_markers = list()
 
+    def guess_attr(self, prop, old, mock, func):
+        # 证明old是prop
+        if hasattr(old, prop):
+            setattr(mock, prop, getattr(old, prop))
+        # 如果手动指定了，则使用手动指定的
+        elif hasattr(mock, prop):
+            pass
+        # 否则，判定
+        else:
+            setattr(mock, prop, func(old))
+
     def process_mark(self, mark):
         mock = parse(mark.args[0], mark.args[1:], kwargs=mark.kwargs)
         try:
             old = getattr(mock.obj, mock.name)
             try:
-                import asyncio
-                # 如果是异步函数或者之前mock过有为true的async属性或者在配置中指定了async=true
-                if asyncio.iscoroutinefunction(old) \
-                        or getattr(old, "async", False) or \
-                        mock.async:
-                    mock.async = True
+                from asyncio import iscoroutinefunction
+                self.guess_attr("asyncable", old, mock, iscoroutinefunction)
             except ImportError:
                 pass
-            # 证明old是prop
-            if hasattr(old, "callable"):
-                mock.callable = old.callable
-            # 当old不是prop同时也不是可调用对象时
-            elif not callable(old):
-                mock.callable = False
+            self.guess_attr("callable", old, mock, callable)
             # apistellar的依赖注入需要return 的signature
             if mock.callable:
                 if getattr(old, "__annotations__", None):
@@ -125,7 +127,7 @@ class PropPatcher(Patcher):
                             "return": old.__annotations__["return"]}
         except AttributeError:
             raise RuntimeError("{} has not attr: {}".format(mock.obj, mock.name))
-        self.mokey_patch.setattr(*mock)
+        self.monkey_patch.setattr(*mock)
 
     @classmethod
     def config_parse(cls, mark):
@@ -149,7 +151,7 @@ class EnvPatcher(Patcher):
     def process_mark(self, mark):
         prepend = mark.kwargs.pop("prepend", None)
         for key, val in mark.kwargs.items():
-            self.mokey_patch.setenv(key, val, prepend)
+            self.monkey_patch.setenv(key, val, prepend)
 
     @classmethod
     def config_parse(cls, mark):

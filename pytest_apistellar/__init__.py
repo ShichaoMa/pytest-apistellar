@@ -2,7 +2,7 @@
 from _pytest.mark import MarkDecorator, Mark
 
 
-__version__ = "0.0.9"
+__version__ = "0.0.10"
 
 
 class DecoratorProxy(object):
@@ -16,12 +16,13 @@ class DecoratorProxy(object):
 
     def __call__(self, prop_name, *args, **kwargs):
         ret_factory = kwargs.pop("ret_factory", None)
+
         if self.mock_obj_prefix:
             pn = "{}.{}".format(self.mock_obj_prefix, prop_name)
         else:
             pn = prop_name
 
-        if ret_factory and self.mock_factory_prefix:
+        if ret_factory and isinstance(ret_factory, str) and self.mock_factory_prefix:
             fn = "{}.{}".format(self.mock_factory_prefix, ret_factory)
         else:
             fn = ret_factory
