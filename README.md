@@ -11,11 +11,11 @@ pytest-apistellar主要有两个功能：
 - 使用装饰器增强pytest mock功能的可用性，目前支持属性和环境变量的mock
 
 ## 如何启动一个web服务
-下面的代码在定义了server_port参数后自动使用子线程启动了一个ASGI server
+下面的代码在定义了server参数后自动使用子线程启动了一个ASGI server
 ```python
 @pytest.mark.asyncio
-async def test_mimetype(server_port):
-    url = f"http://localhost:{server_port}/mimetype/"
+async def test_mimetype(server):
+    url = f"http://localhost:{server.port}/mimetype/"
     async with ClientSession(conn_timeout=10, read_timeout=10) as session:
         resp = await session.get(url)
         data = await resp.json()
@@ -26,7 +26,7 @@ async def test_mimetype(server_port):
 from uploader.uploader.mimetype import MimetypeController
 ```
 一个api单元测试就写好了，可以直接使用pytest命令启动
-## 如何mock属性和环境变量
+## 如何mock属性, 环境变量, 字典, 工作目录, python包搜索路径
 ### mock属性
 除了全局的mock以外，mock使用pytest.mark.prop来实现。
 pytest.mark.prop可以被传递入位置参数和关键字参数，具体用法如下：
@@ -145,5 +145,95 @@ def test_appname(self):
     import os
     assert os.getenv("APP_NAME") == "TEST"
 ```
+
+### mock字典
+
+#### session作用域
+在pytest.ini中增加
+```ini
+[pytest]
+item =
+    factories.data["a"]=11
+```
+factories.data指向一个字典属性
+#### module作用域
+以module作为namespace，在当前module定义全局变量pytestmark
+```python
+pytestmark = [pytest.mark.item(data, a=2)]
+```
+###### class作用域
+以class作为namespace，定义类变量pytestmark
+```python
+class TestMimetype:
+    pytestmark = [pytest.mark.item(data, a=3)]
+```
+###### function作用域
+每个单元测试都会加载一次，使用mark来标注
+```python
+@pytest.mark.item(data, a=4)
+@pytest.mark.usefixtures("mock")
+def test_appname(self):
+    assert data["a"] == 4
+
+### mock工作目录
+
+#### session作用域
+在pytest.ini中增加
+```ini
+[pytest]
+path =
+    ../
+```
+可以使用绝对路径和相对路径
+#### module作用域
+以module作为namespace，在当前module定义全局变量pytestmark
+```python
+pytestmark = [pytest.mark.path("../")]
+```
+###### class作用域
+以class作为namespace，定义类变量pytestmark
+```python
+class TestMimetype:
+    pytestmark = [pytest.mark.path("../")]
+```
+###### function作用域
+每个单元测试都会加载一次，使用mark来标注
+```python
+@pytest.mark.path("../")
+@pytest.mark.usefixtures("mock")
+def test_appname(self):
+    ...
+
+
+### mock python搜索路径
+
+#### session作用域
+在pytest.ini中增加
+```ini
+[pytest]
+syspath =
+    ../
+```
+可以使用绝对路径和相对路径
+#### module作用域
+以module作为namespace，在当前module定义全局变量pytestmark
+```python
+pytestmark = [pytest.mark.syspath("../")]
+```
+###### class作用域
+以class作为namespace，定义类变量pytestmark
+```python
+class TestMimetype:
+    pytestmark = [pytest.mark.syspath("../")]
+```
+###### function作用域
+每个单元测试都会加载一次，使用mark来标注
+```python
+@pytest.mark.syspath("../")
+@pytest.mark.usefixtures("mock")
+def test_appname(self):
+    ...
+
+
 ## 最后
 定义了mock配置并指定了作用域不代表mock会生效，要mock生效还需要指定`@pytest.mark.usefixtures("mock")`才可以。

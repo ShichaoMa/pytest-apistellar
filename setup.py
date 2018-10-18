@@ -46,7 +46,7 @@ setup(
         "Intended Audience :: Developers",
         "Operating System :: Unix",
     ],
-    keywords="apistar",
+    keywords="pytest,apistellar",
     author="cn",
     author_email="cnaafhvk@foxmail.com",
     url="https://www.github.com/ShichaoMa/apistellar",
@@ -59,4 +59,6 @@ setup(
     install_requires=install_requires(),
     include_package_data=True,
     zip_safe=True,
+    setup_requires=["pytest-runner"],
+    tests_require=["pytest-asyncio", "pytest-cov"]
 )

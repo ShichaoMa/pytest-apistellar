@@ -1,5 +1,8 @@
 # -*- coding:utf-8 -*-
+import re
+import os
 import six
+import pytest
 import inspect
 
 from abc import ABCMeta, abstractmethod
@@ -7,6 +10,7 @@ from abc import ABCMeta, abstractmethod
 from _pytest.mark import Mark
 from _pytest.monkeypatch import MonkeyPatch
 
+from .utils import load
 from .parser import parse
 
 
@@ -78,10 +82,13 @@ class Patcher(object):
     @classmethod
     def from_pytestconfig(cls, pytestconfig):
         mocks = pytestconfig.inicfg.get(cls.name)
+        ms = list()
         if mocks:
-            ms = (cls.config_parse(m) for m in mocks.strip().split("\n"))
-        else:
-            ms = []
+            for m in mocks.strip().split("\n"):
+                if m.strip():
+                    mark = cls.config_parse(m.strip())
+                    if mark:
+                        ms.append(mark)
         return cls(ms)
 
     @classmethod
@@ -141,6 +148,29 @@ class PropPatcher(Patcher):
         return Mark(cls.name, tuple([mark]), kwargs)
 
 
+class ItemPatcher(Patcher):
+    """
+    用来monkey patch Item
+    """
+    name = "item"
+    total_markers = list()
+    mark_config_regex = re.compile(r"(.+?)\[(.+?)\]\s*=\s*?(.+)")
+
+    def process_mark(self, mark):
+        for key, val in mark.kwargs.items():
+            item = mark.args[0]
+            if isinstance(item, str):
+                item = load(item)
+            self.monkey_patch.setitem(item, key, val)
+
+    @classmethod
+    def config_parse(cls, mark_str):
+        mth = cls.mark_config_regex.search(mark_str)
+        if mth:
+            prop_name, key, val = mth.groups()
+            return Mark(cls.name, tuple([prop_name]), {eval(key): eval(val)})
+
+
 class EnvPatcher(Patcher):
     """
     用来monkey patch 环境变量
@@ -154,6 +184,54 @@ class EnvPatcher(Patcher):
             self.monkey_patch.setenv(key, val, prepend)
 
     @classmethod
-    def config_parse(cls, mark):
-        key, val = mark.split("=", 1)
+    def config_parse(cls, mark_str):
+        key, val = mark_str.split("=", 1)
         return Mark(cls.name, tuple(), {key: val})
+
+
+class PathPatcher(Patcher):
+    """
+        用来monkey patch 目录
+        """
+    name = "path"
+    total_markers = list()
+
+    def process_mark(self, mark):
+        self.monkey_patch.chdir(mark.args[0])
+
+    @classmethod
+    def config_parse(cls, mark_str):
+        return Mark(cls.name, tuple([mark_str]), dict())
+
+
+class SysPathPatcher(PathPatcher):
+    """
+        用来monkey patch sys path
+        """
+    name = "syspath"
+    total_markers = list()
+
+    def process_mark(self, mark):
+        self.monkey_patch.syspath_prepend(os.path.abspath(mark.args[0]))
+
+
+def process(request, load_from="request"):
+    with getattr(PathPatcher, "from_%s" % load_from)(request) as path_patcher,\
+         getattr(SysPathPatcher, "from_%s" % load_from)(request) as syspath_patcher,\
+         getattr(EnvPatcher, "from_%s" % load_from)(request) as env_patcher,\
+         getattr(ItemPatcher, "from_%s" % load_from)(request) as item_patcher,\
+         getattr(PropPatcher, "from_%s" % load_from)(request) as prop_petcher:
+        path_patcher.process()
+        syspath_patcher.process()
+        env_patcher.process()
+        item_patcher.process()
+        prop_petcher.process()
+        yield
+
+
+def build(scope, load_from="request"):
+    def mock(request, pytestconfig):
+        gen = process(locals()[load_from], load_from=load_from)
+        yield next(gen)
+
+    return pytest.fixture(scope=scope, name="%s_mock" % scope)(mock)
