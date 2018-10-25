@@ -117,12 +117,12 @@ class PropPatcher(Patcher):
     def process_mark(self, mark):
         mock = parse(mark.args[0], mark.args[1:], kwargs=mark.kwargs)
         try:
-            old = getattr(mock.obj, mock.name)
+            old = getattr(mock.obj, mock.name, None)
             try:
                 from asyncio import iscoroutinefunction
                 self.guess_attr("asyncable", old, mock, iscoroutinefunction)
             except ImportError:
-                pass
+                mock.asyncable = False
             self.guess_attr("callable", old, mock, callable)
             # apistellar的依赖注入需要return 的signature
             if mock.callable:
@@ -134,7 +134,7 @@ class PropPatcher(Patcher):
                             "return": old.__annotations__["return"]}
         except AttributeError:
             raise RuntimeError("{} has not attr: {}".format(mock.obj, mock.name))
-        self.monkey_patch.setattr(*mock)
+        self.monkey_patch.setattr(*mock, raising=False)
 
     @classmethod
     def config_parse(cls, mark):
@@ -143,7 +143,20 @@ class PropPatcher(Patcher):
             kwargs = {"ret_factory": ret_factory}
         else:
             mark, ret_val = mark.split("=", 1)
-            kwargs = {"ret_val": mark}
+            try:
+                ret_val = eval(ret_val)
+            except NameError:
+                # 如果报错了，可能是字符串描述的模块没有导入，则导入模块
+                index = ret_val.index("(")
+                #如果存在(，则证明需要调用函数或类
+                if index != -1:
+                    prop_str, args_str = ret_val[:index], ret_val[index:]
+                    prop = load(prop_str)
+                    locals()[prop.__name__] = prop
+                    ret_val = eval(prop.__name__ + args_str)
+                else:
+                    ret_val = load(ret_val)
+            kwargs = {"ret_val": ret_val}
 
         return Mark(cls.name, tuple([mark]), kwargs)
 

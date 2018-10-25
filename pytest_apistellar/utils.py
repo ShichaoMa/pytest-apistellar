@@ -25,7 +25,6 @@ def run_server(path, container, port=None):
     port = port or free_port()
     server = Server(app, "127.0.0.1", port, loop, None, HttpToolsProtocol)
     loop.run_until_complete(server.create_server())
-
     if server.server is not None:
         container.append(loop)
         container.append(server)
@@ -38,8 +37,13 @@ def create_server(path):
     th = threading.Thread(target=run_server, args=(path, container))
     th.setDaemon(True)
     th.start()
-    while len(container) < 2:
+    # 等待10秒
+    for i in range(100):
         time.sleep(0.1)
+        if len(container) == 2:
+            break
+    else:
+        raise RuntimeError("子线程启动超时！")
     return container
 
 

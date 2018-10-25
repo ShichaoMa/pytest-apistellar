@@ -48,7 +48,7 @@ session作用域下的mock全局有效。
 [pytest]
 prop =
     paas_star.Routing.from_etcd->factories.RoutingFactory
-    uploader.uploader.s3.file.File.TABLE=test_file
+    uploader.uploader.s3.file.File.TABLE="test_file"
 ```
 每行为一个mock
 
@@ -62,7 +62,9 @@ ret_factory = factories.RoutingFactory
 
 args[0] = uploader.uploader.s3.file.File.TABLE
 
-ret_val = test_file
+ret_val = "test_file"
+
+ret_val的获取手段是执行eval()同时传入=后面的数据，如果=号后面的数据是需要导包的，框架还会进行自动导包。
 
 #### module作用域
 module作用域的mock仅在当前模块有效，在当前模块定义全局变量pytestmark
