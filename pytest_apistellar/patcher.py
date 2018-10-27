@@ -10,20 +10,8 @@ from abc import ABCMeta, abstractmethod
 from _pytest.mark import Mark
 from _pytest.monkeypatch import MonkeyPatch
 
-from .utils import load
 from .parser import parse
-
-
-class MarkerWrapper(object):
-    """
-    Mark类__eq__使用(name, args, kwargs)是否相同来判断，
-    无法满足去重的要求，所以使用这个类来包装一下使用id来去重。
-    """
-    def __init__(self, marker):
-        self.marker = marker
-
-    def __eq__(self, other):
-        return id(self.marker) == id(other)
+from .utils import load, cache_classproperty, MarkerWrapper
 
 
 @six.add_metaclass(ABCMeta)
@@ -37,8 +25,7 @@ class Patcher(object):
         :return:
         """
 
-    @property
-    @abstractmethod
+    @cache_classproperty
     def total_markers(self):
         """
         由于iter_markers会返回所有scope下的mark，
@@ -46,6 +33,7 @@ class Patcher(object):
         type: list
         :return:
         """
+        return list()
 
     def __init__(self, markers):
         self.monkey_patch = MonkeyPatch()
@@ -101,7 +89,7 @@ class PropPatcher(Patcher):
     用来monkey patch 属性
     """
     name = "prop"
-    total_markers = list()
+    order = 5
 
     def guess_attr(self, prop, old, mock, func):
         # 证明old是prop
@@ -148,7 +136,7 @@ class PropPatcher(Patcher):
             except NameError:
                 # 如果报错了，可能是字符串描述的模块没有导入，则导入模块
                 index = ret_val.index("(")
-                #如果存在(，则证明需要调用函数或类
+                # 如果存在(，则证明需要调用函数或类
                 if index != -1:
                     prop_str, args_str = ret_val[:index], ret_val[index:]
                     prop = load(prop_str)
@@ -166,7 +154,7 @@ class ItemPatcher(Patcher):
     用来monkey patch Item
     """
     name = "item"
-    total_markers = list()
+    order = 4
     mark_config_regex = re.compile(r"(.+?)\[(.+?)\]\s*=\s*?(.+)")
 
     def process_mark(self, mark):
@@ -189,7 +177,7 @@ class EnvPatcher(Patcher):
     用来monkey patch 环境变量
     """
     name = "env"
-    total_markers = list()
+    order = 3
 
     def process_mark(self, mark):
         prepend = mark.kwargs.pop("prepend", None)
@@ -207,7 +195,7 @@ class PathPatcher(Patcher):
         用来monkey patch 目录
         """
     name = "path"
-    total_markers = list()
+    order = 1
 
     def process_mark(self, mark):
         self.monkey_patch.chdir(mark.args[0])
@@ -222,24 +210,23 @@ class SysPathPatcher(PathPatcher):
         用来monkey patch sys path
         """
     name = "syspath"
-    total_markers = list()
+    order = 2
 
     def process_mark(self, mark):
         self.monkey_patch.syspath_prepend(os.path.abspath(mark.args[0]))
 
 
-def process(request, load_from="request"):
-    with getattr(PathPatcher, "from_%s" % load_from)(request) as path_patcher,\
-         getattr(SysPathPatcher, "from_%s" % load_from)(request) as syspath_patcher,\
-         getattr(EnvPatcher, "from_%s" % load_from)(request) as env_patcher,\
-         getattr(ItemPatcher, "from_%s" % load_from)(request) as item_patcher,\
-         getattr(PropPatcher, "from_%s" % load_from)(request) as prop_petcher:
-        path_patcher.process()
-        syspath_patcher.process()
-        env_patcher.process()
-        item_patcher.process()
-        prop_petcher.process()
+def process(request, load_from="request",
+            patchers=sorted(Patcher.__subclasses__(), key=lambda x: x.order)):
+    if not patchers:
         yield
+
+    patcher = patchers[0]
+    with getattr(patcher, "from_%s" % load_from)(request) as patcher:
+        patcher.process()
+        # 使用一个变量来指向生成器，防止在整个函数返回之前被gc
+        gen = process(request, load_from, patchers[1:])
+        yield next(gen)
 
 
 def build(scope, load_from="request"):

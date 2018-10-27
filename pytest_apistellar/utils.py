@@ -4,6 +4,8 @@ import socket
 import warnings
 import threading
 
+from functools import wraps
+
 
 def run_server(path, container, port=None):
     """
@@ -83,3 +85,57 @@ def load(prop_str):
             ex = e
     else:
         raise ex
+
+
+def cache_property(func):
+    """
+    缓存属性，只计算一次
+    :param func:
+    :return:
+    """
+    @property
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if func.__name__ not in args[0].__dict__:
+            args[0].__dict__[func.__name__] = func(*args, **kwargs)
+        return args[0].__dict__[func.__name__]
+    return wrapper
+
+
+class classproperty(object):
+    """
+    property只能用于实例方法到实例属性的转换，使用classproperty来支持类方法到类属性的转换
+    """
+    def __init__(self, func):
+        self.func = func
+
+    def __get__(self, instance, owner):
+        return self.func(owner)
+
+
+def cache_classproperty(func):
+    """
+    缓存类属性，只计算一次
+    :param func:
+    :return:
+    """
+    @classproperty
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        prop_name = "_" + func.__name__
+        if prop_name not in args[0].__dict__:
+            setattr(args[0], prop_name, func(*args, **kwargs))
+        return args[0].__dict__[prop_name]
+    return wrapper
+
+
+class MarkerWrapper(object):
+    """
+    Mark类__eq__使用(name, args, kwargs)是否相同来判断，
+    无法满足去重的要求，所以使用这个类来包装一下使用id来去重。
+    """
+    def __init__(self, marker):
+        self.marker = marker
+
+    def __eq__(self, other):
+        return id(self.marker) == id(other)
