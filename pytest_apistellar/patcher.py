@@ -11,7 +11,7 @@ from _pytest.mark import Mark
 from _pytest.monkeypatch import MonkeyPatch
 
 from .parser import parse
-from .utils import load, cache_classproperty, MarkerWrapper
+from .utils import load, cache_classproperty, MarkerWrapper, guess
 
 
 @six.add_metaclass(ABCMeta)
@@ -131,20 +131,8 @@ class PropPatcher(Patcher):
             kwargs = {"ret_factory": ret_factory}
         else:
             mark, ret_val = mark.split("=", 1)
-            try:
-                ret_val = eval(ret_val)
-            except NameError:
-                # 如果报错了，可能是字符串描述的模块没有导入，则导入模块
-                index = ret_val.index("(")
-                # 如果存在(，则证明需要调用函数或类
-                if index != -1:
-                    prop_str, args_str = ret_val[:index], ret_val[index:]
-                    prop = load(prop_str)
-                    locals()[prop.__name__] = prop
-                    ret_val = eval(prop.__name__ + args_str)
-                else:
-                    ret_val = load(ret_val)
-            kwargs = {"ret_val": ret_val}
+
+            kwargs = {"ret_val": guess(ret_val)}
 
         return Mark(cls.name, tuple([mark]), kwargs)
 
@@ -169,7 +157,7 @@ class ItemPatcher(Patcher):
         mth = cls.mark_config_regex.search(mark_str)
         if mth:
             prop_name, key, val = mth.groups()
-            return Mark(cls.name, tuple([prop_name]), {eval(key): eval(val)})
+            return Mark(cls.name, tuple([prop_name]), {eval(key): guess(val)})
 
 
 class EnvPatcher(Patcher):

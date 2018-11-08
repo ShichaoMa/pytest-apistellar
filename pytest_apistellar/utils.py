@@ -5,6 +5,7 @@ import warnings
 import threading
 
 from functools import wraps
+from future.utils import raise_from
 
 
 def run_server(path, container, port=None):
@@ -72,7 +73,6 @@ def load(prop_str):
     # 失败则将模块路径回退一级，将回退的部分转换成属性
     # 至到加载模块成功后依次从模块中提取属性。
     ex = None
-
     while prop_str:
         try:
             obj = __import__(prop_str, fromlist=prop_str.split(".")[-1])
@@ -82,9 +82,34 @@ def load(prop_str):
         except (AttributeError, ImportError) as e:
             prop_str, _sep, attr_str = prop_str.rpartition('.')
             attr_list.insert(0, attr_str)
-            ex = e
+
+            try:
+                raise_from(e)
+            except Exception as e:
+                ex = e
     else:
         raise ex
+
+
+def guess(val):
+    """
+    通过字符串表达式去猜测要返回的值
+    @param val:
+    @return:
+    """
+    try:
+        return eval(val)
+    except NameError:
+        # 如果报错了，可能是字符串描述的模块没有导入，则导入模块
+        index = val.find("(")
+        # 如果存在(，则证明需要调用函数或类
+        if index != -1:
+            prop_str, args_str = val[:index], val[index:]
+            prop = load(prop_str)
+            locals()[prop.__name__] = prop
+            return eval(prop.__name__ + args_str)
+        else:
+            return load(val)
 
 
 def cache_property(func):
