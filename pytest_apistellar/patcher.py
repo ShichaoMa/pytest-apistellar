@@ -11,7 +11,7 @@ from _pytest.mark import Mark
 from _pytest.monkeypatch import MonkeyPatch
 
 from .parser import parse
-from .utils import load, cache_classproperty, MarkerWrapper, guess
+from .utils import load, cache_classproperty, MarkerWrapper, guess, find_children
 
 
 @six.add_metaclass(ABCMeta)
@@ -98,7 +98,7 @@ class PropPatcher(Patcher):
         # 如果手动指定了，则使用手动指定的
         elif hasattr(mock, prop):
             pass
-        # 否则，判定
+        # 否则，自行判断
         else:
             setattr(mock, prop, func(old))
 
@@ -205,7 +205,7 @@ class SysPathPatcher(PathPatcher):
 
 
 def process(request, load_from="request",
-            patchers=sorted(Patcher.__subclasses__(), key=lambda x: x.order)):
+            patchers=sorted(find_children(Patcher), key=lambda x: x.order)):
     if not patchers:
         yield
 

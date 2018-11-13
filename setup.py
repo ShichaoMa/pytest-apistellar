@@ -1,6 +1,7 @@
 # -*- coding:utf-8 -*-
 import os
 import re
+import sys
 import string
 
 from contextlib import contextmanager
@@ -51,6 +52,10 @@ def cfg_manage(cfg_tpl_filename):
     else:
         yield
 
+tests_require = ["pytest-cov"]
+if sys.version_info >= (3, 4, 0):
+    tests_require.append("pytest-asyncio")
+
 
 with cfg_manage(__file__.replace(".py", ".cfg.tpl")):
     setup(
@@ -79,5 +84,5 @@ with cfg_manage(__file__.replace(".py", ".cfg.tpl")):
         include_package_data=True,
         zip_safe=True,
         setup_requires=["pytest-runner"],
-        tests_require=["pytest-asyncio", "pytest-cov"]
+        tests_require= tests_require
     )

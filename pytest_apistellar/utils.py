@@ -4,7 +4,7 @@ import socket
 import warnings
 import threading
 
-from functools import wraps
+from functools import wraps, reduce
 from future.utils import raise_from
 
 
@@ -82,9 +82,8 @@ def load(prop_str):
         except (AttributeError, ImportError) as e:
             prop_str, _sep, attr_str = prop_str.rpartition('.')
             attr_list.insert(0, attr_str)
-
             try:
-                raise_from(e)
+                raise_from(ImportError(), e)
             except Exception as e:
                 ex = e
     else:
@@ -164,3 +163,13 @@ class MarkerWrapper(object):
 
     def __eq__(self, other):
         return id(self.marker) == id(other)
+
+
+def find_children(cls):
+    """
+    获取所有(component)的子类或其实例。
+    :param cls: 父类
+    :return:
+    """
+    return set(reduce(lambda x, y: x.union(set([y])).union(find_children(y)),
+                      cls.__subclasses__(), set()))
