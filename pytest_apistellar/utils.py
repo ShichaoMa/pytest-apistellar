@@ -5,7 +5,6 @@ import warnings
 import threading
 
 from functools import wraps, reduce
-from future.utils import raise_from
 
 
 def run_server(path, container, port=None):
@@ -82,10 +81,7 @@ def load(prop_str):
         except (AttributeError, ImportError) as e:
             prop_str, _sep, attr_str = prop_str.rpartition('.')
             attr_list.insert(0, attr_str)
-            try:
-                raise_from(ImportError(e), e)
-            except Exception as e:
-                ex = e
+            ex = e
     else:
         raise ex
 

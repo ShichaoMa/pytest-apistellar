@@ -103,26 +103,27 @@ class PropPatcher(Patcher):
             setattr(mock, prop, func(old))
 
     def process_mark(self, mark):
-        mock = parse(mark.args[0], mark.args[1:], kwargs=mark.kwargs)
-        try:
-            old = getattr(mock.obj, mock.name, None)
+        for mock in parse(mark.args[0], mark.args[1:], kwargs=mark.kwargs):
             try:
-                from asyncio import iscoroutinefunction
-                self.guess_attr("asyncable", old, mock, iscoroutinefunction)
-            except ImportError:
-                mock.asyncable = False
-            self.guess_attr("callable", old, mock, callable)
-            # apistellar的依赖注入需要return 的signature
-            if mock.callable:
-                if getattr(old, "__annotations__", None):
-                    if old.__annotations__["return"]:
-                        mock.__signature__ = inspect.Signature(
-                            return_annotation=old.__annotations__["return"])
-                        mock.__annotations__ = {
-                            "return": old.__annotations__["return"]}
-        except AttributeError:
-            raise RuntimeError("{} has not attr: {}".format(mock.obj, mock.name))
-        self.monkey_patch.setattr(*mock, raising=False)
+                old = getattr(mock.obj, mock.name, None)
+                try:
+                    from asyncio import iscoroutinefunction
+                    self.guess_attr("asyncable", old, mock, iscoroutinefunction)
+                except ImportError:
+                    mock.asyncable = False
+                self.guess_attr("callable", old, mock, callable)
+                # apistellar的依赖注入需要return 的signature
+                if mock.callable:
+                    if getattr(old, "__annotations__", None):
+                        if old.__annotations__["return"]:
+                            mock.__signature__ = inspect.Signature(
+                                return_annotation=old.__annotations__["return"])
+                            mock.__annotations__ = {
+                                "return": old.__annotations__["return"]}
+            except AttributeError:
+                raise RuntimeError("{} has not attr: {}".format(
+                    mock.obj, mock.name))
+            self.monkey_patch.setattr(*mock, raising=False)
 
     @classmethod
     def config_parse(cls, mark):

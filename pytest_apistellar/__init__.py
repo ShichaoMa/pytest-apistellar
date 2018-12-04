@@ -3,7 +3,7 @@ from pyaop import Proxy, AOP
 from _pytest.mark import MarkDecorator, Mark
 
 
-__version__ = "0.1.5"
+__version__ = "0.1.6"
 
 
 def wrapper(mock_obj_prefix, mock_factory_prefix):
