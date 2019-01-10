@@ -70,7 +70,7 @@ class Prop(object):
         kwargs.setdefault("callable", False)
         return "<Prop(name={name} obj={obj} asyncable={asyncable} " \
                "callable={callable} kwargs={kwargs} ret_val={ret_val} " \
-               "ret_factory={ret_factory})>".format(**self.__dict__)
+               "ret_factory={ret_factory})>".format(**kwargs)
 
     __repr__ = __str__
 
@@ -96,5 +96,6 @@ def parse(mock, args, kwargs=None, regex=re.compile(r" no[\w\s]+?(['\"])(\w+)\1"
             ancestor = regex.search(str(ex)).group(2)
             _obj_name, last = re.split(ancestor, obj_name, 1)
 
-            for mock_prop in parse(_obj_name + ancestor, tuple(), {"ret_val": Attr()}):
+            for mock_prop in parse(
+                    _obj_name + ancestor, tuple(), {"ret_val": Attr()}):
                 yield mock_prop

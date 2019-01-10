@@ -132,7 +132,6 @@ class PropPatcher(Patcher):
             kwargs = {"ret_factory": ret_factory}
         else:
             mark, ret_val = mark.split("=", 1)
-
             kwargs = {"ret_val": guess(ret_val)}
 
         return Mark(cls.name, tuple([mark]), kwargs)
