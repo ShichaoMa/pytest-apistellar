@@ -1,4 +1,5 @@
 # -*- coding:utf-8 -*-
+import re
 import time
 import socket
 import warnings
@@ -27,6 +28,7 @@ def run_server(path, container, port=None):
     port = port or free_port()
     server = Server(app, "127.0.0.1", port, loop, None, HttpToolsProtocol)
     loop.run_until_complete(server.create_server())
+
     if server.server is not None:
         container.append(loop)
         container.append(server)
@@ -96,15 +98,22 @@ def guess(val):
         return eval(val)
     except NameError:
         # 如果报错了，可能是字符串描述的模块没有导入，则导入模块
-        index = val.find("(")
-        # 如果存在(，则证明需要调用函数或类
-        if index != -1:
-            prop_str, args_str = val[:index], val[index:]
-            prop = load(prop_str)
-            locals()[prop.__name__] = prop
-            return eval(prop.__name__ + args_str)
-        else:
-            return load(val)
+        try:
+            # 寻找[或(，来判断是否需要执行方法或函数
+            mth = re.search(r"[\[\(]", val)
+            # 如果存在，则证明需要调用函数或类
+            if mth:
+                prop_str, args_str = val[:mth.start()], val[mth.start():]
+                prop = load(prop_str)
+                prop_name = "_local_prop_name"
+                locals()[prop_name] = prop
+                return eval(prop_name + args_str)
+            else:
+                return load(val)
+        except (ImportError, NameError, AttributeError):
+            return val
+    except SyntaxError:
+        return val
 
 
 def cache_property(func):

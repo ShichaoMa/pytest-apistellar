@@ -175,7 +175,7 @@ class EnvPatcher(Patcher):
     @classmethod
     def config_parse(cls, mark_str):
         key, val = mark_str.split("=", 1)
-        return Mark(cls.name, tuple(), {key: val})
+        return Mark(cls.name, tuple(), {key: guess(val)})
 
 
 class PathPatcher(Patcher):
@@ -190,13 +190,13 @@ class PathPatcher(Patcher):
 
     @classmethod
     def config_parse(cls, mark_str):
-        return Mark(cls.name, tuple([mark_str]), dict())
+        return Mark(cls.name, tuple([guess(mark_str)]), dict())
 
 
 class SysPathPatcher(PathPatcher):
     """
-        用来monkey patch sys path
-        """
+    用来monkey patch sys path
+    """
     name = "syspath"
     order = 2
 
