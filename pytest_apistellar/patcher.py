@@ -115,7 +115,7 @@ class PropPatcher(Patcher):
                 # apistellar的依赖注入需要return 的signature
                 if mock.callable:
                     if getattr(old, "__annotations__", None):
-                        if old.__annotations__["return"]:
+                        if "return" in old.__annotations__:
                             mock.__signature__ = inspect.Signature(
                                 return_annotation=old.__annotations__["return"])
                             mock.__annotations__ = {
