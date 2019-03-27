@@ -5,6 +5,7 @@ import six
 import pytest
 import inspect
 
+from functools import partial
 from abc import ABCMeta, abstractmethod
 
 from _pytest.mark import Mark
@@ -12,6 +13,8 @@ from _pytest.monkeypatch import MonkeyPatch
 
 from .parser import parse
 from .utils import load, cache_classproperty, MarkerWrapper, guess, find_children
+
+namespace = {"function": 10, "class": 20, "package": 30, "module": 40, "session": 50}
 
 
 @six.add_metaclass(ABCMeta)
@@ -30,10 +33,10 @@ class Patcher(object):
         """
         由于iter_markers会返回所有scope下的mark，
         所以使用这个属性来保证每个markers只处理一次，
-        type: list
         :return:
+        :rtype: dict
         """
-        return list()
+        return dict()
 
     def __init__(self, markers):
         self.monkey_patch = MonkeyPatch()
@@ -45,14 +48,29 @@ class Patcher(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.monkey_patch.undo()
 
-    def process(self):
+    def process(self, request):
+        fixture_kwargs = dict()
+        # 只有PropPatcher才需要注入fixture。
+        if self.name == "prop":
+            for name, fixture in request._fixture_defs.items():
+                # 当前请求作用域适用于该fixture的作用域
+                if namespace[request.scope] <= namespace[fixture.scope]:
+                    fixture_kwargs[name] = request.getfixturevalue(name)
+
         for mark in self.markers:
-            if MarkerWrapper(mark) not in self.total_markers:
-                self.process_mark(mark)
-                self.total_markers.append(mark)
+            mark_wrapper = MarkerWrapper(mark)
+            # 由于当前request可获得的markers包括大于等于当前作用域的所有marker。
+            # 而请求加载顺序的作用域从大到小，如到function作用域时，
+            # 其它作用域已经处理过一些mark，这些mark需要过滤掉，
+            # 但在执行时若使用了多输入的fixture，会出现请求重复发起的情况，
+            # 此时需要重复执行mock， 因此，不能对function级别的mark进行过滤。
+            if mark_wrapper not in self.total_markers or \
+                    self.total_markers[mark_wrapper] == "function":
+                self.process_mark(mark, fixture_kwargs)
+                self.total_markers[mark_wrapper] = request.scope
 
     @abstractmethod
-    def process_mark(self, mark):
+    def process_mark(self, mark, fixture_kwargs):
         """
         个性化定制mark处理方法
         :return:
@@ -102,8 +120,14 @@ class PropPatcher(Patcher):
         else:
             setattr(mock, prop, func(old))
 
-    def process_mark(self, mark):
-        for mock in parse(mark.args[0], mark.args[1:], kwargs=mark.kwargs):
+    def process_mark(self, mark, fixture_kwargs):
+        kwargs = mark.kwargs.copy()
+        # 是否往factory中注入fixture
+        fixture_inject = kwargs.pop("fixture_inject", False)
+        for mock in parse(mark.args[0], mark.args[1:], kwargs=kwargs):
+            if mock.ret_factory and fixture_kwargs and fixture_inject:
+                mock.ret_factory = partial(mock.ret_factory, **fixture_kwargs)
+
             try:
                 old = getattr(mock.obj, mock.name, None)
                 try:
@@ -145,7 +169,7 @@ class ItemPatcher(Patcher):
     order = 4
     mark_config_regex = re.compile(r"(.+?)\[(.+?)\]\s*=\s*?(.+)")
 
-    def process_mark(self, mark):
+    def process_mark(self, mark, fixture_kwargs):
         for key, val in mark.kwargs.items():
             item = mark.args[0]
             if isinstance(item, str):
@@ -167,7 +191,7 @@ class EnvPatcher(Patcher):
     name = "env"
     order = 3
 
-    def process_mark(self, mark):
+    def process_mark(self, mark, fixture_kwargs):
         prepend = mark.kwargs.pop("prepend", None)
         for key, val in mark.kwargs.items():
             self.monkey_patch.setenv(key, val, prepend)
@@ -185,7 +209,7 @@ class PathPatcher(Patcher):
     name = "path"
     order = 1
 
-    def process_mark(self, mark):
+    def process_mark(self, mark, fixture_kwargs):
         self.monkey_patch.chdir(mark.args[0])
 
     @classmethod
@@ -200,26 +224,26 @@ class SysPathPatcher(PathPatcher):
     name = "syspath"
     order = 2
 
-    def process_mark(self, mark):
+    def process_mark(self, mark, fixture_kwargs):
         self.monkey_patch.syspath_prepend(os.path.abspath(mark.args[0]))
 
 
-def process(request, load_from="request",
+def process(fromobj, request=None, load_from="request",
             patchers=sorted(find_children(Patcher), key=lambda x: x.order)):
     if not patchers:
         yield
 
     patcher = patchers[0]
-    with getattr(patcher, "from_%s" % load_from)(request) as patcher:
-        patcher.process()
+    with getattr(patcher, "from_%s" % load_from)(fromobj) as patcher:
+        patcher.process(request)
         # 使用一个变量来指向生成器，防止在整个函数返回之前被gc
-        gen = process(request, load_from, patchers[1:])
+        gen = process(fromobj, request, load_from, patchers[1:])
         yield next(gen)
 
 
 def build(scope, load_from="request"):
     def mock(request, pytestconfig):
-        gen = process(locals()[load_from], load_from=load_from)
+        gen = process(locals()[load_from], request=request, load_from=load_from)
         yield next(gen)
 
     return pytest.fixture(scope=scope, name="%s_mock" % scope)(mock)

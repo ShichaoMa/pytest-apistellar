@@ -35,6 +35,7 @@ pytest.mark.prop可以被传递入位置参数和关键字参数，具体用法�
 - ret_factory: 关键字参数，指定一个工厂(可调用对象)，其返回值将作为被mock的方法的返回值或者被mock的属性的值，与ret_val二者指定其一。
 - asyncable: 关键字参数，被mock的方法或函数是否是异步的，通常可以忽略这个参数，因为插件会自动猜测其性质，但是有些同步的函数会返回future来伪装成异步函数，这时需要指定。
 - callable: 关键字参数，这个在特定情况下需要指定，比如要mock一个属性，但属性是可调用的，此时要传callable=False。
+- fixture_inject: 关键字参数，ret_factory是否使用fixture的注入机制，默认为False。
 - args[1:]: 其它位置参数会被作为ret_factory的参数传入。
 - kwargs: 其它关键字参数会被作为ret_factory的参数传入。
 
@@ -236,6 +237,36 @@ class TestMimetype:
 def test_appname(self):
     ...
 
+## ret_factory配合fixture_inject使用
+设置fixture_inject=True，可以为ret_factory指定fixture，以对同一个单元测试mock不同的数据来多次执行。
+由于fixture是在mock时完成注入的，所以fixture的scope不能使用function
+```python
+import pytest
 
+
+@pytest.fixture(scope="session", params=[x for x in range(1, 5)])
+def a(request):
+    return request.param
+
+
+pytestmark = [
+    pytest.mark.prop("factories.TestClass.get_data_module",
+                     ret_factory=lambda a, **kwargs: a * 3, fixture_inject=True)
+]
+
+
+@pytest.mark.prop("factories.TestClass.get_data_class",
+                     ret_factory=lambda a, **kwargs: a * 4, fixture_inject=True)
+class TestPropPatcher(object):
+
+    @pytest.mark.prop("factories.TestClass.get_data_function",
+                     ret_factory=lambda a, **kwargs: a * 5, fixture_inject=True)
+    def test_factory(self, a):
+        from factories import TestClass
+        assert TestClass.get_data_function() == a * 5
+        assert TestClass.get_data_class() == 4
+        assert TestClass.get_data_module() == 3
+
+```
 ## 最后
 定义了mock配置并指定了作用域不代表mock会生效，要mock生效还需要指定`@pytest.mark.usefixtures("mock")`才可以。

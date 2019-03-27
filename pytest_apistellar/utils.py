@@ -166,8 +166,19 @@ class MarkerWrapper(object):
     def __init__(self, marker):
         self.marker = marker
 
+    def __hash__(self):
+        return id(self.marker)
+
     def __eq__(self, other):
-        return id(self.marker) == id(other)
+        if not hasattr(other, "marker"):
+            return False
+
+        return id(self.marker) == id(other.marker)
+
+    def __repr__(self):
+        return repr(self.marker)
+
+    __str__ = __repr__
 
 
 def find_children(cls):

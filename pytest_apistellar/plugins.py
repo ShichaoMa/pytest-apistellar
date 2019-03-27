@@ -45,5 +45,6 @@ def mock(request, session_mock, module_mock, class_mock):
     """封装monkey patch实现mock env和prop"""
     # 这里不能连着写，因为连着写生成器会被马上回收，
     # 回收后会马上调用上下文对象的__exit__，导致触发monkey.undo
-    gen = process(request)
+    gen = process(request, request)
     yield next(gen)
+
