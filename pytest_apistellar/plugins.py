@@ -23,11 +23,10 @@ def server(request):
     try:
         path = os.path.dirname(request.module.__file__)
         loop, server = create_server(path)
-        yield server
+        yield server.config
     finally:
         os.chdir(old_path)
         if server:
-            server.server.close()
             server.should_exit = True
             # 等待tick退出
             time.sleep(1)

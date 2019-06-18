@@ -18,22 +18,22 @@ def run_server(path, container, port=None):
     try:
         import asyncio
         from apistellar import Application
-        from uvicorn.main import Server, HttpToolsProtocol
+        from uvicorn.main import Server, Config
+
+        class TestServer(Server):
+            # 子线程无法注册信号
+            def install_signal_handlers(self):
+                pass
+
     except ImportError:
-        warnings.warn("Python3.6: apistellar required. ")
+        warnings.warn("Python3.6+: apistellar required. ")
         raise
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
     app = Application("test", current_dir=path)
     port = port or free_port()
-    server = Server(app, "127.0.0.1", port, loop, None, HttpToolsProtocol)
-    loop.run_until_complete(server.create_server())
-
-    if server.server is not None:
-        container.append(loop)
-        container.append(server)
-        loop.create_task(server.tick())
-        loop.run_forever()
+    server = TestServer(Config(app, host="127.0.0.1", port=port, loop="asyncio"))
+    container.append(None)
+    container.append(server)
+    server.run()
 
 
 def create_server(path):
